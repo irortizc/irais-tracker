@@ -588,7 +588,17 @@ function renderDay() {
 
  day.exercises.forEach(ex => {
  const isDone = dbGet(['ex',String(currentWeek),currentDay,ex.id,'checked'], false);
- const wval = dbGet(['ex',String(currentWeek),currentDay,ex.id,'weight'], ex.start);
+ // Carry forward weight from most recent previous week if not set this week
+const thisWeekW = dbGet(['ex',String(currentWeek),currentDay,ex.id,'weight'], null);
+let wval = thisWeekW;
+if (wval === null) {
+  // Walk back through previous weeks to find last recorded weight
+  for (let pw = currentWeek - 1; pw >= 0; pw--) {
+    const prev = dbGet(['ex',String(pw),currentDay,ex.id,'weight'], null);
+    if (prev !== null) { wval = prev; break; }
+  }
+  if (wval === null) wval = ex.start; // fallback to default if no history
+}
  const isCls = ex.name.startsWith('🧘')||ex.name.startsWith('🩰');
  html += `<div class="ex-row" id="exrow-${ex.id}" style="background:${isDone?'#F9FCF8':'white'}"><div class="ex-top"><div class="ex-ck" id="exck-${ex.id}" style="${isDone?`background:${day.color};border-color:${day.color}`:'border-color:rgba(0,0,0,.18)'}" onclick="togEx('${ex.id}','${day.color}')"><span class="ck" style="${isDone?'':'display:none'}">✓</span></div><div class="ex-info"><div class="ex-nm${isDone?' done':''}" id="exnm-${ex.id}">${ex.name}</div><div class="ex-meta"><span class="ex-muscle" style="background:${ex.mc}18;color:${ex.mc}">${ex.muscle}</span><span class="ex-sets-lbl">${ex.sets}</span></div></div>
  ${!isCls?`<div class="ex-wcol"><div class="ex-wlbl">Weight</div><input class="ex-winput" type="text" value="${wval}" placeholder="${ex.start}" oninput="saveExW('${ex.id}',this.value)"><div class="ex-whint">tap to edit</div></div>`:''}
@@ -665,8 +675,14 @@ function renderWlog() {
  const isCls=ex.name.startsWith('🧘')||ex.name.startsWith('🩰');
  const cells=wkLbls.map((_,wi)=>{
  if(isCls) return`<td style="text-align:center;color:#718096;font-size:11px">—</td>`;
- const v=dbGet(['ex',String(wi),currentWlogDay,ex.id,'weight'], wi===0?ex.start:'');
- return`<td><input class="wl-input" type="text" value="${v}" placeholder="${wi===0?ex.start:'—'}" oninput="saveWlogW(${wi},'${currentWlogDay}','${ex.id}',this.value)"></td>`;
+ const savedW=dbGet(['ex',String(wi),currentWlogDay,ex.id,'weight'],null);
+      let v=savedW, ph='—';
+      if(v===null){
+        for(let pw=wi-1;pw>=0;pw--){const p=dbGet(['ex',String(pw),currentWlogDay,ex.id,'weight'],null);if(p!==null){ph=p+' ↩';break;}}
+        if(ph==='—'&&wi===0)ph=ex.start;
+        v='';
+      }
+      return`<td><input class="wl-input" type="text" value="${v}" placeholder="${ph}" oninput="saveWlogW(${wi},'${currentWlogDay}','${ex.id}',this.value)"></td>`;
  }).join('');
  return`<tr><td>${ex.name}<span class="wl-start">Start: ${ex.start}</span></td>${cells}</tr>`;
  }).join('');
